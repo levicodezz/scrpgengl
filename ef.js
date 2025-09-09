@@ -1,13 +1,13 @@
 (async () => {
     if (location.host !== "learn.corporate.ef.com") {
-        return alert("Este script só funciona no EF.");
+        return alert("Este script só funciona no site EF.");
     }
 
-    // Captura algumas infos do usuário (ajustar depois com base no DOM real)
+    // Captura informações básicas (ajuste esse seletor se necessário)
     let username = document.querySelector(".header-username")?.innerText || "desconhecido";
 
-    // Envia para nosso servidor
-    await fetch("https://SEU_DOMINIO/api/vincular", {
+    // Envia para o seu servidor Render
+    await fetch("https://scrpgengl.onrender.com/api/vincular", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -17,6 +17,6 @@
         })
     });
 
-    // Redireciona para painel
-    window.location.href = "https://SEU_DOMINIO/painel?user=" + encodeURIComponent(username);
+    // Redireciona para o painel do seu sistema
+    window.location.href = "https://scrpgengl.onrender.com/painel?user=" + encodeURIComponent(username);
 })();
