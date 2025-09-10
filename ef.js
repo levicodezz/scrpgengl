@@ -1,28 +1,21 @@
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
+(async () => {
+  try {
+    const username = document.querySelector('.header-username')?.innerText || 'desconhecido';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+    // Exibe mensagem só para teste
+    alert(`Usuário identificado: ${username}`);
 
-// Corrige caminho para __dirname no ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+    // Faz POST para API de vinculação (opcional)
+    await fetch("https://scrpgengl.onrender.com/api/vincular", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    });
 
-// Habilita CORS para qualquer origem
-app.use(cors());
-
-// Rota principal opcional
-app.get('/', (req, res) => {
-res.send('Servidor do EF Script rodando 🚀');
-});
-
-// Servir o script ef.js diretamente
-app.get('/ef.js', (req, res) => {
-res.sendFile(path.join(__dirname, 'ef.js'));
-});
-
-app.listen(PORT, () => {
-console.log(Servidor escutando em http://localhost:${PORT});
-});
+    // Redireciona para painel (ajuste conforme sua lógica)
+    window.location.href = `https://scrpgengl.onrender.com/painel?user=${encodeURIComponent(username)}`;
+  } catch (err) {
+    console.error("Erro ao executar script remoto:", err);
+    alert("❌ Falha ao executar script.");
+  }
+})();
