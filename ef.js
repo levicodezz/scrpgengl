@@ -1,22 +1,28 @@
-(async () => {
-    if (location.host !== "learn.corporate.ef.com") {
-        return alert("Este script só funciona no site EF.");
-    }
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-    // Captura informações básicas (ajuste esse seletor se necessário)
-    let username = document.querySelector(".header-username")?.innerText || "desconhecido";
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    // Envia para o seu servidor Render
-    await fetch("https://scrpgengl.onrender.com/api/vincular", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            user: username,
-            url: window.location.href,
-            timestamp: Date.now()
-        })
-    });
+// Corrige caminho para __dirname no ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    // Redireciona para o painel do seu sistema
-    window.location.href = "https://scrpgengl.onrender.com/painel?user=" + encodeURIComponent(username);
-})();
+// Habilita CORS para qualquer origem
+app.use(cors());
+
+// Rota principal opcional
+app.get('/', (req, res) => {
+res.send('Servidor do EF Script rodando 🚀');
+});
+
+// Servir o script ef.js diretamente
+app.get('/ef.js', (req, res) => {
+res.sendFile(path.join(__dirname, 'ef.js'));
+});
+
+app.listen(PORT, () => {
+console.log(Servidor escutando em http://localhost:${PORT});
+});
