@@ -6,33 +6,61 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
 
 const USERS_FILE = path.join(__dirname, 'users.json');
-const JWT_SECRET = process.env.JWT_SECRET || 'troque_ja_essa_secret_no_render';
+const JWT_SECRET = process.env.JWT_SECRET || 'troque_ja_no_render_ou_env';
 const JWT_EXP = process.env.JWT_EXP || '8h';
 
 const app = express();
-app.use(cors()); // ajuste em prod para origem específica se quiser
+app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// util
+// helpers
 async function readUsers() {
-  try { return await jsonfile.readFile(USERS_FILE); } catch(e) { return []; }
+  try { return await jsonfile.readFile(USERS_FILE); } catch { return []; }
 }
-async function writeUsers(users) { await jsonfile.writeFile(USERS_FILE, users, { spaces: 2 }); }
+async function writeUsers(users) {
+  await jsonfile.writeFile(USERS_FILE, users, { spaces: 2 });
+}
+function ensureUsersFile() {
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, '[]', 'utf8');
+  }
+}
+ensureUsersFile();
 
-// ---------- Auth endpoints for users (script clients) ----------
+// --- AUTH (user login) ---
+// Nota: este login aceita duas formas:
+// 1) se o campo passwordHash começa com '$2' -> compara com bcrypt (hash seguro)
+// 2) se não começa com '$2' -> compara string em texto (apenas para setup inicial)
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'username/password required' });
   const users = await readUsers();
   const u = users.find(x => x.username === username);
   if (!u) return res.status(401).json({ error: 'invalid credentials' });
-  const match = await bcrypt.compare(password, u.passwordHash);
-  if (!match) return res.status(401).json({ error: 'invalid credentials' });
+
+  try {
+    const stored = u.passwordHash || '';
+    let ok = false;
+    if (stored.startsWith('$2')) {
+      // bcrypt hash stored
+      ok = await bcrypt.compare(password, stored);
+    } else {
+      // plain-text (only for initial convenience)
+      ok = password === stored;
+    }
+    if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+  } catch (e) {
+    return res.status(500).json({ error: 'server_error' });
+  }
+
   if (!u.active) return res.status(403).json({ error: 'account_inactive' });
+
   const token = jwt.sign({ uid: u.id, username: u.username, role: u.role }, JWT_SECRET, { expiresIn: JWT_EXP });
-  return res.json({ token, expiresIn: JWT_EXP });
+  res.json({ token, expiresIn: JWT_EXP, username: u.username, role: u.role });
 });
 
 app.get('/api/auth/validate', async (req, res) => {
@@ -43,66 +71,66 @@ app.get('/api/auth/validate', async (req, res) => {
     const payload = jwt.verify(token, JWT_SECRET);
     const users = await readUsers();
     const u = users.find(x => x.id === payload.uid);
-    if (!u || !u.active) return res.status(401).json({ valid: false, reason: 'user_not_active' });
+    if (!u || !u.active) return res.status(401).json({ valid: false });
     return res.json({ valid: true, username: u.username, role: u.role });
   } catch (e) {
     return res.status(401).json({ valid: false });
   }
 });
 
-// ---------- Admin endpoints (manage users) ----------
-// Simple admin protection: require admin token
+// --- ADMIN middleware (expects admin JWT) ---
 async function requireAdmin(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'no_token' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
     const users = await readUsers();
     const u = users.find(x => x.id === payload.uid);
-    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
-    req.adminUser = u;
+    if (!u || !u.active) return res.status(403).json({ error: 'forbidden' });
+    req.admin = u;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'invalid_token' });
   }
 }
 
-// list users
+// --- ADMIN endpoints: CRUD users ---
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   const users = await readUsers();
-  // don't return passwordHash
-  res.json(users.map(u => ({ id: u.id, username: u.username, active: u.active, role: u.role })));
+  // never send password hashes
+  res.json(users.map(u => ({ id: u.id, username: u.username, role: u.role, active: u.active, fullName: u.fullName || '', cargo: u.cargo || '' })));
 });
 
-// create user
 app.post('/api/admin/users', requireAdmin, async (req, res) => {
-  const { username, password, role = 'user', active = true } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'username/password required' });
+  const { username, password, role = 'user', active = true, fullName = '', cargo = '' } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'username+password required' });
   const users = await readUsers();
   if (users.find(u => u.username === username)) return res.status(409).json({ error: 'exists' });
+  // store as bcrypt hash by default for newly created users
   const hash = await bcrypt.hash(password, 10);
-  const newUser = { id: uuidv4(), username, passwordHash: hash, active: !!active, role };
+  const newUser = { id: uuidv4(), username, passwordHash: hash, role, active: !!active, fullName, cargo };
   users.push(newUser);
   await writeUsers(users);
-  res.json({ ok: true, user: { id: newUser.id, username: newUser.username, active: newUser.active, role: newUser.role }});
+  res.json({ ok: true, id: newUser.id });
 });
 
-// update user (edit / toggle active)
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { password, active, role } = req.body || {};
+  const { password, active, role, fullName, cargo } = req.body || {};
   const users = await readUsers();
-  const idx = users.findIndex(u => u.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'not_found' });
-  if (typeof active === 'boolean') users[idx].active = active;
-  if (role) users[idx].role = role;
-  if (password) users[idx].passwordHash = await bcrypt.hash(password, 10);
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ error: 'not_found' });
+  if (typeof active === 'boolean') u.active = active;
+  if (role) u.role = role;
+  if (fullName !== undefined) u.fullName = fullName;
+  if (cargo !== undefined) u.cargo = cargo;
+  if (password) u.passwordHash = await bcrypt.hash(password, 10);
   await writeUsers(users);
-  res.json({ ok: true, user: { id: users[idx].id, username: users[idx].username, active: users[idx].active, role: users[idx].role }});
+  res.json({ ok: true });
 });
 
-// delete
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   let users = await readUsers();
@@ -111,9 +139,9 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// simple route to show server is running
-app.get('/', (req, res) => res.send('H5P Auth server'));
+// health
+app.get('/', (req, res) => res.send('H5P auth server'));
 
 // start
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+app.listen(PORT, () => console.log('Server listening on', PORT));
