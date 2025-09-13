@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Login</title></head>
+<body style="font-family:Arial;margin:40px auto;max-width:500px">
+<h2>Login Usuário</h2>
+<form id="f">
+  <div><input id="u" placeholder="Usuário"></div>
+  <div><input id="p" type="password" placeholder="Senha"></div>
+  <button>Entrar</button>
+</form>
+<pre id="out" style="white-space:pre-wrap;background:#eee;padding:10px;display:none"></pre>
+<script>
+f.onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});
+  const j = await r.json();
+  if(r.ok){ out.style.display='block'; out.textContent='Copie este token:\n\n'+j.token; }
+  else alert('Erro: '+(j.error||'?'));
+};
+</script>
+</body>
+</html>
