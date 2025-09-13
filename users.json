@@ -1,0 +1,9 @@
+[
+  {
+    "id": "admin-id-1",
+    "username": "admin",
+    "passwordHash": "lendinha02", 
+    "active": true,
+    "role": "admin"
+  }
+]
