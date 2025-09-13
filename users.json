@@ -1,9 +1,20 @@
 [
   {
-    "id": "admin-id-1",
-    "username": "admin",
-    "passwordHash": "lendinha02", 
-    "active": true,
-    "role": "admin"
+    "id": "user-levi-001",
+    "username": "levi",
+    "passwordHash": "levisantn",
+    "fullName": "Levi Santana",
+    "cargo": "Dev/Dono",
+    "role": "admin",
+    "active": true
+  },
+  {
+    "id": "user-rafa-002",
+    "username": "rafa",
+    "passwordHash": "kennedy",
+    "fullName": "Rafael Kenedy",
+    "cargo": "Dono",
+    "role": "admin",
+    "active": true
   }
 ]
