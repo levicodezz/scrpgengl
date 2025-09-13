@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel Admin</title>
+</head>
+<body>
+  <h2>Administração de Usuários</h2>
+  <button onclick="loadUsers()">Atualizar lista</button>
+  <table border="1" id="userTable">
+    <thead>
+      <tr><th>ID</th><th>Nome</th><th>Cargo</th><th>Username</th><th>Role</th><th>Ativo</th><th>Ações</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h3>Criar novo usuário</h3>
+  <input id="newNome" placeholder="Nome">
+  <input id="newCargo" placeholder="Cargo">
+  <input id="newUser" placeholder="Username">
+  <input id="newPass" placeholder="Senha">
+  <select id="newRole">
+    <option value="user">User</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button onclick="createUser()">Criar</button>
+
+  <script>
+    const token = prompt("Token de admin:");
+
+    async function loadUsers() {
+      const res = await fetch("/api/admin/users", {
+        headers: { Authorization: "Bearer " + token }
+      });
+      const users = await res.json();
+      const tbody = document.querySelector("#userTable tbody");
+      tbody.innerHTML = "";
+      users.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td>${u.nome}</td>
+          <td>${u.cargo}</td>
+          <td>${u.username}</td>
+          <td>${u.role}</td>
+          <td>${u.active}</td>
+          <td>
+            <button onclick="toggleUser(${u.id}, ${!u.active})">${u.active ? 'Desativar' : 'Ativar'}</button>
+            <button onclick="deleteUser(${u.id})">Excluir</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function createUser() {
+      const nome = document.getElementById("newNome").value;
+      const cargo = document.getElementById("newCargo").value;
+      const username = document.getElementById("newUser").value;
+      const password = document.getElementById("newPass").value;
+      const role = document.getElementById("newRole").value;
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ nome, cargo, username, password, role })
+      });
+      await res.json();
+      loadUsers();
+    }
+
+    async function toggleUser(id, active) {
+      await fetch("/api/admin/users/" + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ active })
+      });
+      loadUsers();
+    }
+
+    async function deleteUser(id) {
+      await fetch("/api/admin/users/" + id, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token }
+      });
+      loadUsers();
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>
